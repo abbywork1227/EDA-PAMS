@@ -90,19 +90,19 @@
 
       <div class="selection-actions">
         <button
-          class="btn light"
-          :disabled="selectedIds.length === 0"
-          @click="openBatchPreview"
+          class="btn light danger"
+          :disabled="!canBatchApprove"
+          @click="startBatchAction('reject')"
         >
-          批次預覽
+          批次退回
         </button>
 
         <button
           class="btn primary"
           :disabled="!canBatchApprove"
-          @click="batchApprove"
+          @click="startBatchAction('approve')"
         >
-          批次核准（預留）
+          批次核准
         </button>
       </div>
     </section>
@@ -378,48 +378,6 @@
              所以不會再另外開第二個 Modal。
              ===================================================== -->
         <template v-else-if="detailRecord">
-
-          <!-- ===================================================
-               批次模式的上一層 / 上一張 / 下一張
-               =================================================== -->
-          <div
-            v-if="batchPreviewOpen"
-            class="batch-navigation"
-          >
-            <button
-              class="btn light back-btn"
-              @click="backToBatchList"
-            >
-              ← 回批次預覽
-            </button>
-
-            <div class="batch-nav-center">
-
-              <button
-                class="btn light"
-                :disabled="!hasPreviousBatchRecord"
-                @click="showPreviousBatchRecord"
-              >
-                ← 上一張
-              </button>
-
-              <span class="batch-counter">
-                {{ batchPreviewIndex + 1 }}
-                /
-                {{ selectedRecords.length }}
-              </span>
-
-              <button
-                class="btn light"
-                :disabled="!hasNextBatchRecord"
-                @click="showNextBatchRecord"
-              >
-                下一張 →
-              </button>
-
-            </div>
-          </div>
-
 
           <!-- ===================================================
                原本完整 AuditRecordConfirm 風格查核單
@@ -993,10 +951,82 @@
 
 
           <!-- ===================================================
+               批次簽核／批次退回：每張都要看、每張都要確認
+               =================================================== -->
+          <div
+            v-if="batchPreviewOpen"
+            class="batch-confirm-area"
+          >
+
+            <div class="batch-confirm-head">
+              <div>
+                <h4>
+                  {{ batchActionMode === 'reject' ? '退回意見' : '簽核意見' }}
+                </h4>
+                <p>
+                  請確認已閱讀本張完整查核表，再完成本張操作。
+                  {{ batchActionMode === 'reject' ? '退回時必須填寫原因。' : '簽核意見可留空。' }}
+                </p>
+              </div>
+
+              <span
+                v-if="currentBatchConfirmed"
+                class="batch-confirmed"
+              >
+                ✓ 本張已確認
+              </span>
+            </div>
+
+            <textarea
+              v-model="batchSuggestions[detailRecord.id]"
+              :placeholder="
+                batchActionMode === 'reject'
+                  ? '請輸入本張案件的退回原因／簽核意見'
+                  : '請輸入本張案件的簽核意見（可留空）'
+              "
+              rows="4"
+            ></textarea>
+
+            <div class="batch-confirm-actions">
+              <span class="batch-required-note">
+                已確認 {{ batchConfirmedIds.length }} / {{ batchRecords.length }} 張
+              </span>
+
+              <button
+                v-if="!currentBatchConfirmed"
+                :class="['btn', batchActionMode === 'reject' ? 'light danger' : 'primary']"
+                @click="confirmCurrentBatchRecord"
+              >
+                {{ batchActionMode === 'reject' ? '確認退回本張' : '確認核准本張' }}
+              </button>
+
+              <button
+                v-else-if="hasNextBatchRecord"
+                class="btn primary"
+                @click="showNextBatchRecord"
+              >
+                下一張 →
+              </button>
+
+              <button
+                v-else
+                :class="['btn', batchActionMode === 'reject' ? 'light danger' : 'primary']"
+                @click="finishBatchAction"
+              >
+                {{ batchActionMode === 'reject' ? '完成批次退回' : '完成批次核准' }}
+              </button>
+            </div>
+
+          </div>
+
+
+          <!-- ===================================================
                單筆簽核操作
                =================================================== -->
           <div
             v-if="
+              !batchPreviewOpen
+              &&
               canAct(detailRecord)
               &&
               currentUser.roleId !== 'UNIT_CONTACT'
@@ -1108,12 +1138,10 @@
             class="batch-navigation bottom"
           >
 
-            <button
-              class="btn light"
-              @click="backToBatchList"
-            >
-              ← 回批次預覽
-            </button>
+            <div class="batch-progress-info">
+              已確認
+              <strong>{{ batchConfirmedIds.length }} / {{ batchRecords.length }} 張</strong>
+            </div>
 
             <div class="batch-nav-center">
 
@@ -1128,12 +1156,12 @@
               <span class="batch-counter">
                 {{ batchPreviewIndex + 1 }}
                 /
-                {{ selectedRecords.length }}
+                {{ batchRecords.length }}
               </span>
 
               <button
                 class="btn light"
-                :disabled="!hasNextBatchRecord"
+                :disabled="!hasNextBatchRecord || !currentBatchConfirmed"
                 @click="showNextBatchRecord"
               >
                 下一張 →
@@ -1205,6 +1233,15 @@ const actionSuggestion = ref('')
 const batchPreviewOpen = ref(false)
 
 const batchPreviewRecordId = ref('')
+
+// 批次目前操作：approve = 核准、reject = 退回
+const batchActionMode = ref('approve')
+
+// 固定本次選取案件，避免前一張處理後 pending 清單變動造成索引錯亂。
+const batchRecords = ref([])
+
+// 已完成「確認本張」的案件 ID
+const batchConfirmedIds = ref([])
 
 const batchSuggestions = reactive({})
 
@@ -1448,11 +1485,11 @@ const selectedRecords = computed(() =>
 
 
 const canBatchApprove = computed(() =>
-  currentUser.value.roleId === 'PHARMACY_MANAGER'
-  &&
   activeTab.value === 'pending'
   &&
   selectedRecords.value.length > 0
+  &&
+  selectedRecords.value.every(r => canWorkRecord(r))
 )
 
 
@@ -1558,7 +1595,7 @@ const batchPreviewIndex = computed(() => {
     return -1
   }
 
-  return selectedRecords.value.findIndex(
+  return batchRecords.value.findIndex(
     r => r.id === batchPreviewRecordId.value
   )
 })
@@ -1579,7 +1616,13 @@ const hasNextBatchRecord = computed(() =>
   batchPreviewIndex.value >= 0
   &&
   batchPreviewIndex.value <
-    selectedRecords.value.length - 1
+    batchRecords.value.length - 1
+)
+
+const currentBatchConfirmed = computed(() =>
+  !!detailRecord.value
+  &&
+  batchConfirmedIds.value.includes(detailRecord.value.id)
 )
 
 
@@ -1682,6 +1725,10 @@ const closeModal = () => {
   batchPreviewOpen.value = false
 
   batchPreviewRecordId.value = ''
+
+  batchRecords.value = []
+  batchConfirmedIds.value = []
+  batchActionMode.value = 'approve'
 }
 
 
@@ -1955,172 +2002,166 @@ const submitImprovement = itemId => {
 
 /*
  * ============================================================
- * 開啟批次預覽
+ * 批次核准／批次退回
+ * ------------------------------------------------------------
+ * 本查核系統原本的角色、查核流程與 mockService 不變。
+ * 只修改批次操作方式：選取多筆後直接進第一張完整查核單，
+ * 每張完成確認後才能進下一張。
  * ============================================================
  */
-const openBatchPreview = () => {
+const startBatchAction = mode => {
   if (!selectedRecords.value.length) {
-    return alert(
-      '請先選擇案件。'
-    )
+    return alert('請先選擇案件。')
   }
 
-  /*
-   * 每一筆只初始化一次。
-   *
-   * 如果使用者之前已經輸入過，
-   * 不會被重新覆蓋。
-   */
-  selectedRecords.value.forEach(record => {
+  if (!canBatchApprove.value) {
+    return alert('目前登入身分無法執行批次簽核。')
+  }
+
+  batchActionMode.value = mode
+  batchRecords.value = [...selectedRecords.value]
+  batchConfirmedIds.value = []
+
+  batchRecords.value.forEach(record => {
     if (!(record.id in batchSuggestions)) {
-      batchSuggestions[record.id] =
-        record.suggestion || ''
+      batchSuggestions[record.id] = record.suggestion || ''
     }
   })
 
-  /*
-   * 開啟批次模式
-   */
   batchPreviewOpen.value = true
 
-  /*
-   * 一開始顯示案件列表
-   */
-  batchPreviewRecordId.value = ''
-
-  /*
-   * 不需要 detailRecord
-   */
-  detailRecord.value = null
-
+  // 直接進第一張，不再顯示批次案件列表。
+  const first = batchRecords.value[0]
+  batchPreviewRecordId.value = first?.id || ''
+  detailRecord.value = first || null
   actionSuggestion.value = ''
+
+  if (detailRecord.value) {
+    prepareContactDraft(detailRecord.value)
+  }
 }
 
 
-/*
- * ============================================================
- * 批次預覽 → 查看完整查核單
- * ------------------------------------------------------------
- * 重點：
- *
- * 舊版：
- * openRecord(record)
- * batchPreviewOpen=false
- *
- * 會變成兩個 Modal。
- *
- * 新版：
- * 只切換同一個 Modal 裡的狀態。
- * ============================================================
- */
 const openBatchRecord = record => {
-  if (!record) {
-    return
-  }
+  if (!record) return
 
-  /*
-   * 批次模式保持開啟
-   */
   batchPreviewOpen.value = true
-
-  /*
-   * 指定目前查看哪一筆
-   */
   batchPreviewRecordId.value = record.id
 
-  /*
-   * 使用原本的 detailRecord
-   * 讓下面完整查核單直接重用原本內容。
-   */
-  detailRecord.value = record
+  const fresh =
+    mockService.approval.getAll().find(r => r.id === record.id)
 
-  /*
-   * 批次模式下不使用單筆 actionSuggestion。
-   *
-   * 每一筆批次簽核建議仍然保存在
-   * batchSuggestions[record.id]
-   */
+  detailRecord.value = fresh || record
   actionSuggestion.value = ''
 
-  prepareContactDraft(record)
+  prepareContactDraft(detailRecord.value)
 }
 
 
-/*
- * ============================================================
- * 回到批次列表
- * ============================================================
- */
-const backToBatchList = () => {
-  /*
-   * 不關閉 Modal
-   */
-  batchPreviewRecordId.value = ''
-
-  /*
-   * 回到列表後 detailRecord 可以清掉
-   */
-  detailRecord.value = null
-
-  actionSuggestion.value = ''
-}
-
-
-/*
- * ============================================================
- * 批次 → 上一張
- * ============================================================
- */
+// 上一張可以回看。
 const showPreviousBatchRecord = () => {
-  if (!hasPreviousBatchRecord.value) {
-    return
-  }
+  if (!hasPreviousBatchRecord.value) return
 
   const previous =
-    selectedRecords.value[
-      batchPreviewIndex.value - 1
-    ]
+    batchRecords.value[batchPreviewIndex.value - 1]
 
-  if (!previous) {
-    return
+  if (previous) {
+    openBatchRecord(previous)
   }
-
-  openBatchRecord(previous)
 }
 
 
-/*
- * ============================================================
- * 批次 → 下一張
- * ============================================================
- */
+// 下一張必須先完成目前這張的確認。
 const showNextBatchRecord = () => {
-  if (!hasNextBatchRecord.value) {
-    return
+  if (!currentBatchConfirmed.value) {
+    return alert(
+      batchActionMode.value === 'reject'
+        ? '請先完成本張案件的「確認退回」。'
+        : '請先完成本張案件的「確認核准」。'
+    )
   }
+
+  if (!hasNextBatchRecord.value) return
 
   const next =
-    selectedRecords.value[
-      batchPreviewIndex.value + 1
-    ]
+    batchRecords.value[batchPreviewIndex.value + 1]
 
-  if (!next) {
-    return
+  if (next) {
+    openBatchRecord(next)
   }
-
-  openBatchRecord(next)
 }
 
 
-/*
- * ============================================================
- * 批次核准
- * ============================================================
- */
-const batchApprove = () => {
+// 確認目前這一張；實際動作仍使用本查核系統原本的 mockService。
+const confirmCurrentBatchRecord = () => {
+  if (!detailRecord.value) return
+
+  const id = detailRecord.value.id
+  const suggestion = batchSuggestions[id] || ''
+
+  if (batchActionMode.value === 'reject' && !suggestion.trim()) {
+    return alert('退回案件時，請填寫本張的退回原因／簽核意見。')
+  }
+
+  if (batchConfirmedIds.value.includes(id)) {
+    return
+  }
+
+  const success =
+    batchActionMode.value === 'reject'
+      ? mockService.approval.reject(
+          id,
+          currentUser.value.id,
+          suggestion
+        )
+      : mockService.approval.approve(
+          id,
+          currentUser.value.id,
+          suggestion
+        )
+
+  if (!success) {
+    return alert(
+      batchActionMode.value === 'reject'
+        ? '目前不是您的簽核關卡，無法退回。'
+        : '目前不是您的簽核關卡，無法核准。'
+    )
+  }
+
+  batchConfirmedIds.value.push(id)
+  refresh()
+
+  // 確認後有下一張就直接進下一張；最後一張留在畫面上。
+  if (hasNextBatchRecord.value) {
+    const next =
+      batchRecords.value[batchPreviewIndex.value + 1]
+
+    if (next) {
+      openBatchRecord(next)
+    }
+  }
+}
+
+
+// 最後一張確認後才可以完成整批。
+const finishBatchAction = () => {
+  if (batchConfirmedIds.value.length !== batchRecords.value.length) {
+    return alert('請先逐張確認所有選取的查核單。')
+  }
+
   alert(
-    '批次核准目前僅預留 UI，待後端確認批次簽核規則後再啟用。'
+    batchActionMode.value === 'reject'
+      ? '所有選取案件皆已完成批次退回。'
+      : '所有選取案件皆已完成批次核准。'
   )
+
+  selectedIds.value = []
+
+  Object.keys(batchSuggestions).forEach(id => {
+    delete batchSuggestions[id]
+  })
+
+  closeModal()
 }
 </script>
 
@@ -2446,6 +2487,92 @@ const batchApprove = () => {
   resize: vertical;
 }
 
+
+.batch-header-count {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #edf5f4;
+  color: #167a70;
+  font-size: 12px;
+}
+
+.batch-progress-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #486581;
+  font-size: 13px;
+}
+
+.batch-progress-info strong {
+  color: #167a70;
+}
+
+.batch-confirm-area {
+  margin: 0 24px 20px;
+  padding: 16px;
+  border: 1px solid #b7d8d3;
+  border-radius: 12px;
+  background: #f7fffd;
+}
+
+.batch-confirm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.batch-confirm-head h4 {
+  margin: 0 0 4px;
+  color: #102a43;
+}
+
+.batch-confirm-head p {
+  margin: 0;
+  color: #627d98;
+  font-size: 12px;
+}
+
+.batch-confirm-area textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 90px;
+  resize: vertical;
+  margin-top: 8px;
+  border: 1px solid #d9e2ec;
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #334e68;
+}
+
+.batch-confirmed {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #dff6ea;
+  color: #16834d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.batch-required-note {
+  margin-right: auto;
+  color: #627d98;
+  font-size: 12px;
+}
 
 /* ============================================================
    批次上一張 / 下一張
