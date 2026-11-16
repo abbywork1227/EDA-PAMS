@@ -60,7 +60,7 @@
               <select v-model="form.businessOwnerId" class="form-select">
                 <option value="">請選擇查核業務負責人</option>
                 <option v-for="user in businessOwners" :key="user.id" :value="user.id">
-                  {{ user.name }}{{ user.unit ? `｜${user.unit}` : '' }}
+                  {{ user.name }}（{{ user.roleId === 'AUDIT_OWNER' ? '查核業務負責人' : user.roleId === 'PHARMACY_MANAGER' ? '藥劑部主管／部長' : user.roleId === 'UNIT_CONTACT' ? '受查單位窗口' : '藥師' }}）{{ user.unit ? `｜${user.unit}` : '' }}
                 </option>
               </select>
               <small>此人為該院區固定的查核業務負責人。</small>
@@ -71,7 +71,7 @@
               <select v-model="form.pharmacyManagerId" class="form-select">
                 <option value="">請選擇藥劑部部長</option>
                 <option v-for="user in managers" :key="user.id" :value="user.id">
-                  {{ user.name }}{{ user.unit ? `｜${user.unit}` : '' }}
+                  {{ user.name }}（{{ user.roleId === 'AUDIT_OWNER' ? '查核業務負責人' : user.roleId === 'PHARMACY_MANAGER' ? '藥劑部主管／部長' : user.roleId === 'UNIT_CONTACT' ? '受查單位窗口' : '藥師' }}）{{ user.unit ? `｜${user.unit}` : '' }}
                 </option>
               </select>
               <small>固定最終審核關卡。</small>
@@ -97,7 +97,7 @@
               >
                 <option value="">請選擇院區主管</option>
                 <option v-for="user in managers" :key="user.id" :value="user.id">
-                  {{ user.name }}{{ user.unit ? `｜${user.unit}` : '' }}
+                  {{ user.name }}（{{ user.roleId === 'AUDIT_OWNER' ? '查核業務負責人' : user.roleId === 'PHARMACY_MANAGER' ? '藥劑部主管／部長' : user.roleId === 'UNIT_CONTACT' ? '受查單位窗口' : '藥師' }}）{{ user.unit ? `｜${user.unit}` : '' }}
                 </option>
               </select>
               <div v-else class="disabled-hint">未啟用院區主管關卡，案件將直接送部長審核。</div>

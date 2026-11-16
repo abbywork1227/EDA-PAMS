@@ -177,7 +177,7 @@
             </td>
 
             <td>
-              {{ record.createdByName }}
+              {{ record.createdByName }}（藥師）
             </td>
 
             <td>
@@ -425,7 +425,7 @@
                   <th>查核藥師</th>
 
                   <td>
-                    {{ detailRecord.createdByName }}
+                    {{ detailRecord.createdByName }}（藥師）
                   </td>
                 </tr>
               </tbody>

@@ -12,6 +12,16 @@ export const mockUnits = [
   { id: 'OPD', name: '門診注射室', type: '門/急診', hospitalId: 'EDA', email: 'opd@example.com', enabled: true },
   { id: 'OR', name: '開刀房手術區', type: '醫技', hospitalId: 'EDA', email: 'or@example.com', enabled: true },
   { id: 'CATH', name: '心導管室', type: '醫技', hospitalId: 'EDA', email: 'cath@example.com', enabled: true },
+  // 其他院區 Mock 單位，供跨院區配置與權限示範使用。
+  { id: 'ECM-3A', name: '3A 護理站', type: '住院', hospitalId: 'ECM', email: 'ecm3a@example.com', enabled: true },
+  { id: 'ECM-3B', name: '3B 護理站', type: '住院', hospitalId: 'ECM', email: 'ecm3b@example.com', enabled: true },
+  { id: 'ECM-ER', name: '急診急救室', type: '急診', hospitalId: 'ECM', email: 'ecmer@example.com', enabled: true },
+  { id: 'DCH-3A', name: '3A 護理站', type: '住院', hospitalId: 'DACHANG', email: 'dch3a@example.com', enabled: true },
+  { id: 'DCH-3B', name: '3B 護理站', type: '住院', hospitalId: 'DACHANG', email: 'dch3b@example.com', enabled: true },
+  { id: 'DCH-ER', name: '急診急救室', type: '急診', hospitalId: 'DACHANG', email: 'dcher@example.com', enabled: true },
+  { id: 'PT-3A', name: '3A 護理站', type: '住院', hospitalId: 'PINGTUNG', email: 'pt3a@example.com', enabled: true },
+  { id: 'PT-3B', name: '3B 護理站', type: '住院', hospitalId: 'PINGTUNG', email: 'pt3b@example.com', enabled: true },
+  { id: 'PT-ER', name: '急診急救室', type: '急診', hospitalId: 'PINGTUNG', email: 'pter@example.com', enabled: true },
 ]
 
 export const getUnitById = (unitId) => mockUnits.find(unit => unit.id === unitId) || null

@@ -21,7 +21,7 @@
           </select>
         </label>
         <label>受查單位
-          <input v-model.trim="filters.unit" placeholder="請輸入單位名稱或代碼" />
+          <select v-model="filters.unit"><option value="">全部受查單位</option><option v-for="unit in unitOptions" :key="unit.key" :value="unit.key">{{ unit.unitId }} {{ unit.unitName }}</option></select>
         </label>
         <label>查核年度
           <select v-model="filters.year">
@@ -45,7 +45,7 @@
         <label>查核藥師
           <select v-model="filters.pharmacistId">
             <option value="">全部</option>
-            <option v-for="pharmacist in pharmacists" :key="pharmacist.id" :value="pharmacist.id">{{ pharmacist.name }}</option>
+            <option v-for="pharmacist in pharmacists" :key="pharmacist.id" :value="pharmacist.id">{{ pharmacist.name }}（藥師）</option>
           </select>
         </label>
         <label>結案日期（起）
@@ -90,7 +90,7 @@
             <td>{{ record.unitName }}</td>
             <td>{{ record.year }}/{{ String(record.month).padStart(2, '0') }}</td>
             <td><span :class="['result-tag', record.result.toLowerCase()]">{{ record.result }}</span></td>
-            <td>{{ record.createdByName }}</td>
+            <td>{{ record.createdByName }}（藥師）</td>
             <td>{{ getClosedDate(record) }}</td>
             <td><button class="link-btn" @click="openRecord(record)">查看完整查核單</button></td>
           </tr>
@@ -121,7 +121,7 @@
             <tbody>
               <tr><th>受查單位</th><td>{{ detailRecord.auditData?.pageInfo?.unitName || detailRecord.unitName }}</td><th>院區</th><td>{{ detailRecord.hospitalName }}</td></tr>
               <tr><th>年度</th><td>{{ detailRecord.year }}</td><th>月份</th><td>{{ detailRecord.month }}</td></tr>
-              <tr><th>查核藥師</th><td>{{ detailRecord.createdByName }}</td><th>結案日期</th><td>{{ getClosedDate(detailRecord) }}</td></tr>
+              <tr><th>查核藥師</th><td>{{ detailRecord.createdByName }}（藥師）</td><th>結案日期</th><td>{{ getClosedDate(detailRecord) }}</td></tr>
               <tr><th>查核結果</th><td><span :class="['result-tag', detailRecord.result.toLowerCase()]">{{ detailRecord.result }}</span></td><th>案件摘要</th><td>{{ detailRecord.summary }}</td></tr>
             </tbody>
           </table>
@@ -201,8 +201,9 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { mockHospitals } from '../../mock/users'
+import { mockUnits } from '../../mock/units'
 import { mockService } from '../../mock/mockService'
 
 const hospitals = mockHospitals
@@ -210,6 +211,7 @@ const records = computed(() => mockService.auditRecords.getCompleted())
 const filters = reactive({ hospitalId:'', unit:'', year:'', month:'', result:'', pharmacistId:'', closedFrom:'', closedTo:'', documentNo:'' })
 const appliedFilters = reactive({ ...filters })
 const detailRecord = ref(null)
+const unitOptions = computed(() => mockUnits.filter(u => u.enabled && (!filters.hospitalId || u.hospitalId === filters.hospitalId)).map(u => ({ key: `${u.hospitalId}|${u.id}`, unitId: u.id, unitName: u.name, hospitalId: u.hospitalId })))
 
 const yearOptions = computed(() => [...new Set(records.value.map(r => r.year))].sort((a,b)=>b-a))
 const pharmacists = computed(() => {
@@ -220,8 +222,8 @@ const filteredRecords = computed(() => records.value.filter(record => {
   const closedDate = getClosedDate(record)
   if (appliedFilters.hospitalId && record.hospitalId !== appliedFilters.hospitalId) return false
   if (appliedFilters.unit) {
-    const keyword = appliedFilters.unit.toLowerCase()
-    if (!String(record.unitName || '').toLowerCase().includes(keyword) && !String(record.unitId || '').toLowerCase().includes(keyword)) return false
+    const [unitHospitalId, unitId] = appliedFilters.unit.split('|')
+    if (record.hospitalId !== unitHospitalId || record.unitId !== unitId) return false
   }
   if (appliedFilters.year && String(record.year) !== String(appliedFilters.year)) return false
   if (appliedFilters.month && String(record.month) !== String(appliedFilters.month)) return false
@@ -246,6 +248,7 @@ const openRecord = record => { detailRecord.value = record }
 const closeRecord = () => { detailRecord.value = null }
 const applyFilters = () => Object.assign(appliedFilters, filters)
 const clearFilters = () => { Object.keys(filters).forEach(k => { filters[k] = '' }); applyFilters() }
+watch(() => filters.hospitalId, () => { if (filters.unit && !unitOptions.value.some(u => u.key === filters.unit)) filters.unit = '' })
 </script>
 
 <style scoped>

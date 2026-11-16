@@ -17,29 +17,30 @@
         </div>
       </div>
       <div class="filters">
-        <select v-model.number="year">
+        <label class="filter-field"><span>查核年度</span><select v-model.number="year" aria-label="查核年度">
           <option v-for="y in years" :key="y" :value="y">{{ y }} 年</option>
-        </select>
-        <select v-model="hospitalId" :disabled="isUnitScoped">
+        </select></label>
+        <label class="filter-field"><span>院區</span><select v-model="hospitalId" aria-label="院區">
           <option value="">全部院區</option>
           <option v-for="h in hospitals" :key="h.id" :value="h.id">{{ h.name }}</option>
-        </select>
-        <select v-model="unitType" :disabled="isUnitScoped">
+        </select></label>
+        <label class="filter-field"><span>單位類型</span><select v-model="unitType" aria-label="單位類型">
           <option value="">全部單位類型</option>
           <option v-for="x in unitTypes" :key="x" :value="x">{{ x }}</option>
-        </select>
-        <select v-model="unitId" :disabled="isUnitScoped">
+        </select></label>
+        <label class="filter-field"><span>受查單位</span><select v-model="unitId" aria-label="受查單位">
           <option value="">全部受查單位</option>
           <option v-for="x in unitOptions" :key="x.key" :value="x.key">{{ x.unitId }} {{ x.unitName }}</option>
-        </select>
-        <select v-model="statusFilter">
+        </select></label>
+        <label class="filter-field"><span>查核月份</span><select v-model.number="monthFilter" aria-label="查核月份"><option :value="0">全年</option><option v-for="m in 12" :key="m" :value="m">{{ String(m).padStart(2, '0') }} 月</option></select></label>
+        <label class="filter-field"><span>查核狀態</span><select v-model="statusFilter">
           <option value="">全部查核狀態</option>
           <option value="completed">已完成</option>
           <option value="processing">改善／簽核中</option>
           <option value="overdue">逾期未查</option>
           <option value="not-started">尚未到期／未開始</option>
           <option value="not-scheduled">該月免查</option>
-        </select>
+        </select></label>
       </div>
     </section>
 
@@ -69,17 +70,17 @@
           <thead>
             <tr>
               <th class="sticky-unit">院區／受查單位</th>
-              <th v-for="month in 12" :key="month">{{ String(month).padStart(2, '0') }}月</th>
+              <th v-for="month in visibleMonths" :key="month">{{ String(month).padStart(2, '0') }}月</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="unit in filteredUnits" :key="unit.key">
+            <tr v-for="unit in visibleUnits" :key="unit.key">
               <td class="sticky-unit unit-cell" @click="openUnitDetail(unit)">
                 <div class="hospital-name">{{ unit.hospitalName }}</div>
                 <div><span class="unit-code">{{ unit.unitId }}</span> <b>{{ unit.unitName }}</b></div>
                 <small>{{ unit.unitType }}</small>
               </td>
-              <td v-for="month in 12" :key="month" class="month-cell">
+              <td v-for="month in visibleMonths" :key="month" class="month-cell">
                 <button
                   :class="['month-status', getStatus(unit, month).className]"
                   :title="getStatus(unit, month).title"
@@ -88,8 +89,8 @@
                 >{{ getStatus(unit, month).symbol }}</button>
               </td>
             </tr>
-            <tr v-if="!filteredUnits.length">
-              <td colspan="13" class="empty">目前篩選條件沒有符合的受查單位。</td>
+            <tr v-if="!visibleUnits.length">
+              <td :colspan="visibleMonths.length + 1" class="empty">目前篩選條件沒有符合的受查單位。</td>
             </tr>
           </tbody>
         </table>
@@ -176,12 +177,14 @@ import { mockService } from '../mock/mockService'
 import { mockHospitals, getMockUserByAccount } from '../mock/users'
 import { mockUnitAssignments } from '../mock/unitAssignments'
 import { mockAuditRecords } from '../mock/mockAuditRecords'
+import { mockUnits } from '../mock/units'
 import { getHospitalAmbulancesByUnit } from '../mock/hospitalAmbulanceData'
 import { getControlledDrugsByUnit, getRegularDrugsByUnit } from '../mock/hospitalMedicationData'
 import { getAmbulanceConfig } from '../mock/ambulance'
 
 const hospitals = mockHospitals
 const unitTypes = ['門診', '急診', '住院', '醫技']
+const years = [2027, 2026, 2025]
 const minYear = 2025
 const maxYear = 2027
 const year = ref(2026)
@@ -189,36 +192,25 @@ const hospitalId = ref('')
 const unitType = ref('')
 const unitId = ref('')
 const statusFilter = ref('')
+const monthFilter = ref(0)
+const visibleMonths = computed(() => monthFilter.value ? [monthFilter.value] : Array.from({ length: 12 }, (_, i) => i + 1))
 
 const role = sessionStorage.getItem('userRole') || '藥師'
 const account = sessionStorage.getItem('username') || ''
 const currentUser = getMockUserByAccount(account)
-const hospitalNameToId = Object.fromEntries(hospitals.map(x => [x.name, x.id]))
-const currentHospitalId = computed(() => hospitalNameToId[sessionStorage.getItem('userHospital')] || currentUser?.hospitalId || '')
-const currentUnitKey = computed(() => {
-  if (currentUser?.roleId !== 'UNIT_CONTACT') return ''
-  const assignment = mockUnitAssignments.find(x => x.contactUserId === currentUser.id && x.enabled)
-  return assignment ? `${currentHospitalId.value}|${assignment.unitId}` : ''
-})
-const isUnitScoped = computed(() => role.includes('受查單位') || currentUser?.roleId === 'UNIT_CONTACT')
-const scopeLabel = computed(() => isUnitScoped.value ? `${sessionStorage.getItem('userHospital') || '目前院區'}｜自己的單位` : '依目前登入角色授權範圍')
+// Demo 階段保留院區／單位篩選，方便以同一頁面向客戶示範不同單位資料範圍。
+const isUnitScoped = computed(() => role.includes('受查單位') || ['UNIT_CONTACT', 'UNIT_MANAGER'].includes(currentUser?.roleId))
+const scopeLabel = computed(() => isUnitScoped.value ? '受查單位資料範圍（Demo 可切換示範單位）' : '全部授權院區與受查單位')
 
-if (isUnitScoped.value) {
-  hospitalId.value = currentHospitalId.value
-  unitId.value = currentUnitKey.value
-}
-
-const unitOptions = computed(() => {
-  const map = new Map()
-  mockAuditRecords.forEach(record => {
-    if (hospitalId.value && record.hospitalId !== hospitalId.value) return
-    if (unitType.value && record.unitType !== unitType.value) return
-    if (isUnitScoped.value && currentUnitKey.value && `${record.hospitalId}|${record.unitId}` !== currentUnitKey.value) return
-    const key = `${record.hospitalId}|${record.unitId}`
-    if (!map.has(key)) map.set(key, { key, hospitalId: record.hospitalId, hospitalName: record.hospitalName, unitId: record.unitId, unitName: record.unitName, unitType: record.unitType })
-  })
-  return [...map.values()].sort((a, b) => `${a.hospitalName}${a.unitId}`.localeCompare(`${b.hospitalName}${b.unitId}`, 'zh-Hant'))
-})
+const unitOptions = computed(() => mockUnits
+  .filter(unit => unit.enabled)
+  .filter(unit => !hospitalId.value || unit.hospitalId === hospitalId.value)
+  .filter(unit => !unitType.value || unit.type === unitType.value)
+  .map(unit => {
+    const hospital = hospitals.find(h => h.id === unit.hospitalId)
+    const normalizedType = unit.type === '病房' ? '住院' : unit.type === '門/急診' ? (unit.id.includes('ER') || unit.id === 'ER' ? '急診' : '門診') : unit.type
+    return { key: `${unit.hospitalId}|${unit.id}`, hospitalId: unit.hospitalId, hospitalName: hospital?.name || '', unitId: unit.id, unitName: unit.name, unitType: normalizedType }
+  }))
 
 const filteredUnits = computed(() => unitOptions.value.filter(x => !unitId.value || x.key === unitId.value))
 
@@ -260,7 +252,7 @@ function getStatus(unit, month) {
 
 const visibleUnits = computed(() => filteredUnits.value.filter(unit => {
   if (!statusFilter.value) return true
-  return Array.from({ length: 12 }, (_, i) => getStatus(unit, i + 1).code).some(code => code === statusFilter.value)
+  return visibleMonths.value.some(month => getStatus(unit, month).code === statusFilter.value)
 }))
 
 const unitModal = reactive({ open: false, unit: null, controlledCount: 0, regularCount: 0, ambulanceCount: 0, ambulances: [] })
@@ -287,11 +279,10 @@ function openAudit(unit, month) {
 }
 
 watch([hospitalId, unitType], () => {
-  if (isUnitScoped.value) return
   if (unitId.value && !unitOptions.value.some(x => x.key === unitId.value)) unitId.value = ''
 })
 </script>
 
 <style scoped>
-.overview-page{background:#f4f7fa;color:#1f2937}.overview-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}.eyebrow{font-size:12px;color:#64748b;letter-spacing:.08em;margin-bottom:4px}.overview-head h2{margin:0 0 5px;font-size:23px}.overview-head p{margin:0;color:#64748b;font-size:13px}.scope-badge{background:#fff;border:1px solid #dbe4ee;border-radius:999px;padding:8px 12px;color:#475569;font-size:12px}.query-panel,.panel,.legend-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 2px #00000008}.query-panel{padding:16px 18px;margin-bottom:12px}.query-title h3{margin:0 0 4px;font-size:15px}.query-title p{margin:0;color:#64748b;font-size:12px}.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.filters select{min-width:145px;border:1px solid #d8e0e7;border-radius:8px;background:#fff;padding:9px 11px;color:#334155}.filters select:disabled{background:#f1f5f9;color:#64748b;cursor:not-allowed}.legend-card{display:flex;flex-wrap:wrap;gap:18px;padding:11px 14px;margin-bottom:12px;color:#64748b;font-size:12px}.legend-card span{display:flex;align-items:center;gap:6px}.status-dot{width:22px;height:22px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-style:normal}.status-dot.done{background:#ecfdf5;color:#15803d}.status-dot.ng{background:#fff7ed;color:#c2410c}.status-dot.processing{background:#eff6ff;color:#2563eb}.status-dot.pending{background:#eff6ff;color:#2563eb}.status-dot.none{background:#f1f5f9;color:#94a3b8}.panel{padding:18px}.panel-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}.panel-head h3{margin:0 0 4px;font-size:17px}.panel-head p{margin:0;color:#64748b;font-size:12px}.year-switch{display:flex;align-items:center;gap:8px}.year-switch button{border:1px solid #d8e0e7;background:#fff;border-radius:7px;padding:7px 10px;color:#475569;cursor:pointer}.year-switch button:disabled{opacity:.45;cursor:not-allowed}.year-switch strong{min-width:60px;text-align:center}.table-wrap{overflow:auto}.progress-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1050px}.progress-table th,.progress-table td{border-right:1px solid #e5eaf0;border-bottom:1px solid #e5eaf0}.progress-table th{background:#f8fafc;padding:10px 7px;color:#475569;font-size:12px;text-align:center}.progress-table td{background:#fff;padding:8px 5px}.sticky-unit{position:sticky;left:0;z-index:2;min-width:220px;text-align:left!important;background:#fff!important}.progress-table thead .sticky-unit{z-index:3;background:#f8fafc!important}.unit-cell{cursor:pointer}.unit-cell:hover{background:#f8fafc!important}.hospital-name{font-size:11px;color:#64748b;margin-bottom:2px}.unit-code{color:#256f67;margin-right:4px}.unit-cell small{display:block;color:#94a3b8;margin-top:3px}.month-cell{text-align:center}.month-status{width:34px;height:30px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:15px;font-weight:800;cursor:pointer}.month-status.done{color:#15803d;background:#ecfdf5;border-color:#bbf7d0}.month-status.ng{color:#c2410c;background:#fff7ed;border-color:#fed7aa}.month-status.processing{color:#2563eb;background:#eff6ff;border-color:#bfdbfe}.month-status.pending{color:#2563eb;background:#eff6ff;border-color:#dbeafe}.month-status.overdue{color:#dc2626;background:#fef2f2;border-color:#fecaca}.month-status.none{color:#94a3b8;background:#f8fafc;cursor:default}.month-status:disabled{opacity:1}.empty{text-align:center;padding:38px!important;color:#94a3b8}.modal-backdrop{position:fixed;inset:0;background:#00000045;display:flex;align-items:center;justify-content:center;padding:20px;z-index:60}.modal{width:min(900px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 16px 50px #00000025}.unit-modal{width:min(720px,100%)}.modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.modal-head h3{margin:0 0 4px;font-size:18px}.modal-head p{margin:0;color:#64748b;font-size:12px}.close-btn{border:0;background:#f1f5f9;border-radius:8px;width:32px;height:32px;font-size:22px;cursor:pointer;color:#475569}.detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.detail-grid>div{border:1px solid #e5eaf0;border-radius:10px;padding:13px}.detail-grid span{display:block;color:#64748b;font-size:12px;margin-bottom:6px}.detail-grid b{font-size:17px}.detail-section{margin-top:18px}.detail-section h4{margin:0 0 9px;font-size:14px}.detail-list{border:1px solid #e5eaf0;border-radius:9px}.detail-row{display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eef2f5}.detail-row:last-child{border-bottom:0}.muted{color:#94a3b8;font-size:12px}.record-summary{display:flex;flex-wrap:wrap;gap:18px;padding:12px;background:#f8fafc;border-radius:9px;margin-bottom:12px;color:#475569;font-size:13px}.ok{color:#15803d}.ng{color:#dc2626}.na{color:#64748b}.detail-table{width:100%;border-collapse:collapse;font-size:12px}.detail-table th,.detail-table td{border:1px solid #e2e8f0;padding:8px;text-align:left}.detail-table th{background:#f8fafc;color:#475569}.cart-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.cart-card{border:1px solid #e5eaf0;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:4px}.cart-card span{font-size:11px;color:#64748b}.improvement-row{border:1px solid #e5eaf0;border-radius:9px;padding:11px;margin-bottom:9px}.improvement-row p{margin:6px 0;color:#64748b;font-size:12px}.photo-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.photo-list img{width:105px;height:75px;object-fit:cover;border-radius:7px;border:1px solid #e2e8f0}@media(max-width:800px){.detail-grid{grid-template-columns:repeat(2,1fr)}.cart-grid{grid-template-columns:1fr}.overview-head{flex-direction:column}.scope-badge{align-self:flex-start}}
+.overview-page{background:#f4f7fa;color:#1f2937}.overview-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}.eyebrow{font-size:12px;color:#64748b;letter-spacing:.08em;margin-bottom:4px}.overview-head h2{margin:0 0 5px;font-size:23px}.overview-head p{margin:0;color:#64748b;font-size:13px}.scope-badge{background:#fff;border:1px solid #dbe4ee;border-radius:999px;padding:8px 12px;color:#475569;font-size:12px}.query-panel,.panel,.legend-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 2px #00000008}.query-panel{padding:16px 18px;margin-bottom:12px}.query-title h3{margin:0 0 4px;font-size:15px}.query-title p{margin:0;color:#64748b;font-size:12px}.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.filter-field{display:flex;flex-direction:column;gap:5px;min-width:145px;color:#64748b;font-size:12px}.filters select{min-width:145px;border:1px solid #d8e0e7;border-radius:8px;background:#fff;padding:9px 11px;color:#334155}.filters select:disabled{background:#f1f5f9;color:#64748b;cursor:not-allowed}.legend-card{display:flex;flex-wrap:wrap;gap:18px;padding:11px 14px;margin-bottom:12px;color:#64748b;font-size:12px}.legend-card span{display:flex;align-items:center;gap:6px}.status-dot{width:22px;height:22px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-style:normal}.status-dot.done{background:#ecfdf5;color:#15803d}.status-dot.ng{background:#fff7ed;color:#c2410c}.status-dot.processing{background:#eff6ff;color:#2563eb}.status-dot.pending{background:#eff6ff;color:#2563eb}.status-dot.none{background:#f1f5f9;color:#94a3b8}.panel{padding:18px}.panel-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}.panel-head h3{margin:0 0 4px;font-size:17px}.panel-head p{margin:0;color:#64748b;font-size:12px}.year-switch{display:flex;align-items:center;gap:8px}.year-switch button{border:1px solid #d8e0e7;background:#fff;border-radius:7px;padding:7px 10px;color:#475569;cursor:pointer}.year-switch button:disabled{opacity:.45;cursor:not-allowed}.year-switch strong{min-width:60px;text-align:center}.table-wrap{overflow:auto}.progress-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1050px}.progress-table th,.progress-table td{border-right:1px solid #e5eaf0;border-bottom:1px solid #e5eaf0}.progress-table th{background:#f8fafc;padding:10px 7px;color:#475569;font-size:12px;text-align:center}.progress-table td{background:#fff;padding:8px 5px}.sticky-unit{position:sticky;left:0;z-index:2;min-width:220px;text-align:left!important;background:#fff!important}.progress-table thead .sticky-unit{z-index:3;background:#f8fafc!important}.unit-cell{cursor:pointer}.unit-cell:hover{background:#f8fafc!important}.hospital-name{font-size:11px;color:#64748b;margin-bottom:2px}.unit-code{color:#256f67;margin-right:4px}.unit-cell small{display:block;color:#94a3b8;margin-top:3px}.month-cell{text-align:center}.month-status{width:34px;height:30px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:15px;font-weight:800;cursor:pointer}.month-status.done{color:#15803d;background:#ecfdf5;border-color:#bbf7d0}.month-status.ng{color:#c2410c;background:#fff7ed;border-color:#fed7aa}.month-status.processing{color:#2563eb;background:#eff6ff;border-color:#bfdbfe}.month-status.pending{color:#2563eb;background:#eff6ff;border-color:#dbeafe}.month-status.overdue{color:#dc2626;background:#fef2f2;border-color:#fecaca}.month-status.none{color:#94a3b8;background:#f8fafc;cursor:default}.month-status:disabled{opacity:1}.empty{text-align:center;padding:38px!important;color:#94a3b8}.modal-backdrop{position:fixed;inset:0;background:#00000045;display:flex;align-items:center;justify-content:center;padding:20px;z-index:60}.modal{width:min(900px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 16px 50px #00000025}.unit-modal{width:min(720px,100%)}.modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.modal-head h3{margin:0 0 4px;font-size:18px}.modal-head p{margin:0;color:#64748b;font-size:12px}.close-btn{border:0;background:#f1f5f9;border-radius:8px;width:32px;height:32px;font-size:22px;cursor:pointer;color:#475569}.detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.detail-grid>div{border:1px solid #e5eaf0;border-radius:10px;padding:13px}.detail-grid span{display:block;color:#64748b;font-size:12px;margin-bottom:6px}.detail-grid b{font-size:17px}.detail-section{margin-top:18px}.detail-section h4{margin:0 0 9px;font-size:14px}.detail-list{border:1px solid #e5eaf0;border-radius:9px}.detail-row{display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eef2f5}.detail-row:last-child{border-bottom:0}.muted{color:#94a3b8;font-size:12px}.record-summary{display:flex;flex-wrap:wrap;gap:18px;padding:12px;background:#f8fafc;border-radius:9px;margin-bottom:12px;color:#475569;font-size:13px}.ok{color:#15803d}.ng{color:#dc2626}.na{color:#64748b}.detail-table{width:100%;border-collapse:collapse;font-size:12px}.detail-table th,.detail-table td{border:1px solid #e2e8f0;padding:8px;text-align:left}.detail-table th{background:#f8fafc;color:#475569}.cart-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.cart-card{border:1px solid #e5eaf0;border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:4px}.cart-card span{font-size:11px;color:#64748b}.improvement-row{border:1px solid #e5eaf0;border-radius:9px;padding:11px;margin-bottom:9px}.improvement-row p{margin:6px 0;color:#64748b;font-size:12px}.photo-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.photo-list img{width:105px;height:75px;object-fit:cover;border-radius:7px;border:1px solid #e2e8f0}@media(max-width:800px){.detail-grid{grid-template-columns:repeat(2,1fr)}.cart-grid{grid-template-columns:1fr}.overview-head{flex-direction:column}.scope-badge{align-self:flex-start}}
 </style>

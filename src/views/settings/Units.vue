@@ -129,7 +129,7 @@
         <div class="modal-section">
           <div class="readonly-note">以下三項為本系統可設定內容；院區、單位、查核屬性與急救車資訊由醫院 API 提供。</div>
           <div class="form-grid">
-            <label class="form-field"><span>查核藥師</span><select v-model="editForm.pharmacistId"><option value="">尚未配置</option><option v-for="user in availablePharmacists" :key="user.id" :value="user.id">{{ user.name }}（{{ user.account }}）</option></select></label>
+            <label class="form-field"><span>查核藥師</span><select v-model="editForm.pharmacistId"><option value="">尚未配置</option><option v-for="user in availablePharmacists" :key="user.id" :value="user.id">{{ user.name }}（藥師｜{{ user.account }}）</option></select></label>
             <label class="form-field combobox-field">
               <span>窗口負責人</span>
               <div class="autocomplete-wrap">

@@ -12,6 +12,15 @@ export const mockUnitAssignments = [
   { id: 'UA010', unitId: 'OPD', pharmacistId: 'U001', contactUserId: 'COPD', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: ['AMB-PED-BOX'] },
   { id: 'UA011', unitId: 'OR', pharmacistId: 'U005', contactUserId: 'COR', enabled: true, auditAttributes: ['REGULAR', 'CONTROLLED'], ambulanceTypeIds: ['AMB-ADULT-CART', 'AMB-PED-CART'] },
   { id: 'UA012', unitId: 'CATH', pharmacistId: 'U005', contactUserId: 'CCATH', enabled: true, auditAttributes: ['REGULAR', 'CONTROLLED'], ambulanceTypeIds: ['AMB-ADULT-CART'] },
+  { id: 'UA013', unitId: 'ECM-3A', pharmacistId: 'U101', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA014', unitId: 'ECM-3B', pharmacistId: 'U102', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA015', unitId: 'ECM-ER', pharmacistId: 'U103', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA016', unitId: 'DCH-3A', pharmacistId: 'U201', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA017', unitId: 'DCH-3B', pharmacistId: 'U202', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA018', unitId: 'DCH-ER', pharmacistId: 'U203', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA019', unitId: 'PT-3A', pharmacistId: 'U301', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA020', unitId: 'PT-3B', pharmacistId: 'U302', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
+  { id: 'UA021', unitId: 'PT-ER', pharmacistId: 'U303', contactUserId: '', enabled: true, auditAttributes: ['REGULAR'], ambulanceTypeIds: [] },
 ]
 
 export const getUnitAssignment = (unitId) => mockUnitAssignments.find(item => item.unitId === unitId && item.enabled) || null

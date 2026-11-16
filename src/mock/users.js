@@ -45,6 +45,29 @@ export const mockUsers = [
   { id: 'MGR-EDA-AREA', account: 'MGR-EDA-A', name: '義大院區主管', roleId: 'PHARMACY_MANAGER', hospitalId: 'EDA', unit: '藥劑部', password: '000000', enabled: true },
 ]
 
+// Demo 使用者補充分機、Email 與職稱；正式資料由使用者管理維護。
+const titleByRole = {
+  PHARMACIST: '藥師', AUDIT_OWNER: '查核業務負責人',
+  PHARMACY_MANAGER: '藥劑部主管', UNIT_CONTACT: '護理師／單位窗口',
+}
+mockUsers.forEach((user, index) => {
+  user.title ||= (user.name.includes('護理長') ? '護理長' : (titleByRole[user.roleId] || '人員'))
+  user.extension ||= user.roleId === 'PHARMACIST' ? `5${String(index + 1).padStart(3, '0')}` : ''
+  user.email ||= `${user.account.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user'}@hospital.example.com`
+})
+
+// 各院區增加藥師 Mock，供受查單位配置跨院區示範。
+const additionalPharmacists = [
+  ['U101','5D101','林雅婷','ECM'], ['U102','5D102','陳怡君','ECM'], ['U103','5D103','張家豪','ECM'],
+  ['U201','6D201','許雅雯','DACHANG'], ['U202','6D202','郭俊廷','DACHANG'], ['U203','6D203','蔡佩珊','DACHANG'],
+  ['U301','7D301','吳承翰','PINGTUNG'], ['U302','7D302','李佳蓉','PINGTUNG'], ['U303','7D303','周柏廷','PINGTUNG'],
+  ['U006','4D233','林怡萱','EDA'], ['U007','4D234','陳柏宇','EDA'],
+]
+additionalPharmacists.forEach(([id, account, name, hospitalId], index) => mockUsers.push({
+  id, account, name, roleId: 'PHARMACIST', hospitalId, unit: '藥劑部', title: '藥師',
+  extension: `6${String(index + 1).padStart(3, '0')}`, email: `${account.toLowerCase()}@hospital.example.com`, password: '000000', enabled: true,
+}))
+
 export const getMockUserByAccount = (account) =>
   mockUsers.find(user => user.account.toLowerCase() === String(account || '').trim().toLowerCase()) || null
 
@@ -79,6 +102,9 @@ export const createMockUser = (data = {}) => {
     roleId: data.roleId || 'PHARMACIST',
     hospitalId: data.hospitalId || mockHospitals[0]?.id || '',
     unit: String(data.unit || '').trim(),
+    title: String(data.title || '').trim(),
+    extension: String(data.extension || '').trim(),
+    email: String(data.email || '').trim(),
     password: '000000',
     enabled: data.enabled !== false,
   }
@@ -89,7 +115,7 @@ export const createMockUser = (data = {}) => {
 export const updateMockUser = (userId, changes = {}) => {
   const user = getMockUserById(userId)
   if (!user) return null
-  const allowed = ['name', 'roleId', 'hospitalId', 'unit', 'enabled']
+  const allowed = ['name', 'roleId', 'hospitalId', 'unit', 'title', 'extension', 'email', 'enabled']
   allowed.forEach(key => { if (key in changes) user[key] = changes[key] })
   return user
 }
